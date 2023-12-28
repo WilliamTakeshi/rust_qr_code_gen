@@ -46,7 +46,7 @@ struct QRCode {
     mode: Mode,
     ec_level: ErrorCorrectionLevel,
     mask_pattern: u8,
-    data: Vec<u8>,
+    data: String,
 }
 
 impl QRCode {
@@ -66,76 +66,56 @@ impl QRCode {
         }
     }
 
-    fn encode(mode: &Mode, data: &str) -> Vec<u8> {
-        let encoded_vec: Vec<u8> = match mode {
+    fn encode(mode: &Mode, data: &str) -> String {
+        match mode {
             // Mode::Numeric => {
-            //     let mut encoded_str = String::new();
-            //     let mut i = 0;
-            //     while i < data.len() {
-            //         let mut num = 0;
-            //         for _ in 0..3 {
-            //             num = num * 10 + data.chars().nth(i).unwrap().to_digit(10).unwrap();
-            //             i += 1;
-            //         }
-            //         encoded_str.push_str(&format!("{:010b}", num));
-            //     }
-            //     encoded_str
             // }
             Mode::Alphanumeric => {
-                let mut encoded_vec: Vec<u8> = Vec::new();
-                let mut i = 0;
-                while i < data.len() {
-                    let mut num = 0;
-                    for _ in 0..2 {
-                        if let None = data.chars().nth(i) {
-                            continue;
-                        }
-                        num = num * 45
-                            + match data.chars().nth(i).unwrap() {
-                                '0'..='9' => data.chars().nth(i).unwrap().to_digit(10).unwrap(),
-                                'A'..='Z' => data.chars().nth(i).unwrap() as u32 - 55,
-                                ' ' => 36,
-                                '$' => 37,
-                                '%' => 38,
-                                '*' => 39,
-                                '+' => 40,
-                                '-' => 41,
-                                '.' => 42,
-                                '/' => 43,
-                                ':' => 44,
-                                _ => panic!("Invalid character"),
-                            };
-                        i += 1;
-                    }
-                    dbg!(num);
+                let foo = data.chars().into_iter().collect::<Vec<_>>();
+                let bar = foo
+                    .chunks(2)
+                    .map(|chunk| {
+                        if chunk.len() == 2 {
+                            let first = Self::encoding_for_alphanumeric(&chunk[0]);
+                            let second = Self::encoding_for_alphanumeric(&chunk[1]);
 
-                    // encoded_vec.push(&format!(num));
-                }
-                encoded_vec
+                            let result = first * 45 + second;
+
+                            format!("{:011b}", result)
+                        } else {
+                            let result = Self::encoding_for_alphanumeric(&chunk[0]);
+                            format!("{:06b}", result)
+                        }
+                    })
+                    .fold(String::from(""), |acc, x| acc + &x);
+
+                bar
             }
+
             _ => unimplemented!(),
             // Mode::Byte => {
-            //     let mut encoded_str = String::new();
-            //     for c in data.chars() {
-            //         encoded_str.push_str(&format!("{:08b}", c as u32));
-            //     }
-            //     encoded_str
             // }
             // Mode::Kanji => {
-            //     let mut encoded_str = String::new();
-            //     let mut i = 0;
-            //     while i < data.len() {
-            //         let mut num = 0;
-            //         for _ in 0..2 {
-            //             num = num * 256 + data.chars().nth(i).unwrap() as u32;
-            //             i += 1;
-            //         }
-            //         encoded_str.push_str(&format!("{:013b}", num));
-            //     }
-            //     encoded_str
             // }
-        };
-        encoded_vec
+        }
+    }
+
+    fn encoding_for_alphanumeric(c: &char) -> usize {
+        // Table 5 — Alphanumeric mode encoding - ISO 18004:2015
+        match c {
+            '0'..='9' => *c as usize - 48,
+            'A'..='Z' => *c as usize - 55,
+            ' ' => 36,
+            '$' => 37,
+            '%' => 38,
+            '*' => 39,
+            '+' => 40,
+            '-' => 41,
+            '.' => 42,
+            '/' => 43,
+            ':' => 44,
+            _ => panic!("Invalid character"),
+        }
     }
 }
 
@@ -170,5 +150,22 @@ mod tests {
         assert_eq!(get_mode("aÄ"), Mode::Byte);
         assert_eq!(get_mode("Ä"), Mode::Byte);
         assert_eq!(get_mode("1234567890ABCDEFabcdefあいうえお"), Mode::Kanji);
+    }
+
+    #[test]
+    fn test_encode_alphanum() {
+        let qr_code = QRCode::new("AC-42");
+
+        assert_eq!(qr_code.data, "0011100111011100111001000010")
+    }
+
+    #[test]
+    fn test_encode_alphanum2() {
+        let qr_code = QRCode::new("HELLO CC WORLD");
+
+        assert_eq!(
+            qr_code.data,
+            "01100001011011110001101000101110001000101000110011101001000101001101110111110"
+        )
     }
 }
